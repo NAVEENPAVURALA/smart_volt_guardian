@@ -349,8 +349,12 @@ class AnalyticsScreen extends ConsumerWidget {
                 final reversed = history.reversed.toList();
                 
                 List<FlSpot> spots = [];
+                double maxVolt = 15.0;
                 for (int i = 0; i < reversed.length; i++) {
                   spots.add(FlSpot(i.toDouble(), reversed[i].voltage));
+                  if (reversed[i].voltage > maxVolt - 0.5) {
+                      maxVolt = reversed[i].voltage + 1.0;
+                  }
                 }
 
                 return LineChart(
@@ -373,7 +377,7 @@ class AnalyticsScreen extends ConsumerWidget {
                     ),
                     borderData: FlBorderData(show: false),
                     minY: 8.0,
-                    maxY: 15.0,
+                    maxY: maxVolt,
                     lineBarsData: [
                       LineChartBarData(
                         spots: spots,

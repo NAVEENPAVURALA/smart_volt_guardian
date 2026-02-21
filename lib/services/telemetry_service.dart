@@ -90,30 +90,19 @@ class MockTelemetryService implements TelemetryService {
       // In a real app, this would be stored in a database.
       
       // SOH (State of Health) Simulation
-      // Starts at 100%, degrades based on "Virtual Time" (totalTicks).
-      // Accelerated Aging: 1 hour of real life = 1 year of battery life for demo?
-      // Let's make it drop visible amounts during "Stress Events".
+      double baseDecay = 0.0005;
+      double stressModifier = 1.0;
       
-      double degradation = 0.0;
-      
-      // Base aging (Time)
-      degradation += totalTicks * 0.00001; 
-      
-      // Cycle Stress (Every 600 ticks is a start cycle)
-      int cycles = (totalTicks / 600).floor();
-      degradation += cycles * 0.05; // Each start drops 0.05% health
-      
-      double stateOfHealth = 100.0 - degradation;
-      if (stateOfHealth < 0) stateOfHealth = 0; // Dead Battery
-      
-      // Calculate RUL in Days based on SOH
-      // standard battery lasts ~1200 days (3-4 years)
-      int rulDays = (1200 * (stateOfHealth / 100)).toInt();
-
       // Simulation State Machine
       double voltage = 12.6;
       double current = 0.5;
-      double tempBase = 35.0;
+      
+      // Drifting Ambient Weather
+      double weatherTrend = (totalTicks ~/ 6000) % 2 == 0 ? 1.0 : -1.0;
+      double ambientTemp = 25.0 + ((totalTicks % 6000) * 0.005 * weatherTrend);
+      ambientTemp = ambientTemp.clamp(-10.0, 45.0);
+      
+      double tempBase = ambientTemp;
       bool isAnomaly = false;
       int risk = 15;
 
@@ -157,11 +146,6 @@ class MockTelemetryService implements TelemetryService {
         current = 15.0 * (1 - progress) + 2.0; // Tapering charge current
         tempBase = 30.0 + (10.0 * progress); // Engine warming up
         risk = 10;
-        
-        // Heat accelerates aging
-        if (tempBase > 38) {
-           rulDays -= 2; // Penalty for heat
-        }
       }
       // 4. HEAVY LOAD/ANOMALY (20-25s) -> Ticks 400-500
       else if (cycleTick < 500) {
@@ -175,21 +159,32 @@ class MockTelemetryService implements TelemetryService {
         current = 5.0;
         risk = 20;
       }
-
-      // Intelligent SOC Calculation (Based on Resting Voltage curve 11.8V - 12.8V)
-      double calculatedSoc = ((voltage - 11.8) / (12.8 - 11.8)) * 100.0;
+      
       double finalTemp = tempBase + (sin(t * 0.1) * 0.2);
+
+      // Nonlinear SOC Calculation (Peukert Approximation)
+      double vDiff = (voltage - 11.8).clamp(0.0, 1.0);
+      double calculatedSoc = (pow(vDiff, 0.6) / pow(1.0, 0.6)) * 100.0;
       
       // Basic Temperature Compensation
-      if (finalTemp < 10.0) {
-          calculatedSoc -= (10.0 - finalTemp) * 0.5;
+      if (finalTemp < 15.0) {
+          calculatedSoc -= (15.0 - finalTemp) * 1.5;
       }
       
       double soc = calculatedSoc.clamp(0.0, 100.0);
+      
+      // Dynamic RUL Degradation
+      if (finalTemp < 0 || finalTemp > 40) stressModifier += 2.0;
+      if (current < -50) stressModifier += 3.0;
+      
+      // deterministic degradation for demo purposes
+      double totalDegradation = totalTicks * baseDecay * stressModifier;
+      double stateOfHealth = max(0.0, 100.0 - pow(totalDegradation, 1.1));
+      int rulDays = (1200 * (stateOfHealth / 100.0)).toInt();
 
       return BatteryState(
         voltage: voltage,
-        temperature: tempBase + (sin(t * 0.1) * 0.2), // Thermal inertia
+        temperature: finalTemp, // Thermal inertia
         current: current,
         soc: soc, // Use the dynamically calculated SOC
         riskIndex: risk,

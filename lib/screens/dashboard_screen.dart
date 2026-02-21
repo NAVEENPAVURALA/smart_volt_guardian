@@ -293,6 +293,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
   }
 
   void _showAnomalyDialog(BuildContext context, {bool isParasiticDrain = false, bool isAdrenoxWakeup = false, BatteryState? state}) {
+    if (!mounted) return;
     // Set flag to true immediately to block other dialogs
     setState(() {
       _isDialogVisible = true;
