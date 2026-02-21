@@ -107,16 +107,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             bool isParasiticDrain = !isAdrenoxWakeup && state.voltage < 13.0 && state.current < -1.0;
             
             String? bannerMessage;
+            bool isCriticalRisk = state.riskIndex >= settings.criticalRiskThreshold;
             if (isAdrenoxWakeup) {
               bannerMessage = "WARNING: EXCESSIVE ADRENOX APP POLLING";
             } else if (isParasiticDrain) {
               bannerMessage = "WARNING: HIGH PARASITIC DRAIN DETECTED";
-            } else if (state.isAnomaly || state.voltage <= settings.voltageThreshold) {
+            } else if (state.isAnomaly || state.voltage <= settings.voltageThreshold || isCriticalRisk) {
               bannerMessage = "CRITICAL ALERT: IMPENDING FAILURE";
             }
 
             return StatusBanner(
-              isAnomaly: state.isAnomaly || state.voltage <= settings.voltageThreshold || isParasiticDrain || isAdrenoxWakeup,
+              isAnomaly: state.isAnomaly || state.voltage <= settings.voltageThreshold || isCriticalRisk || isParasiticDrain || isAdrenoxWakeup,
               anomalyMessage: bannerMessage,
             );
           }
@@ -132,7 +133,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   Consumer(
                     builder: (context, ref, child) {
                       final riskIndex = ref.watch(batteryStateProvider.select((s) => s.value?.riskIndex ?? 0));
-                      return RiskGauge(riskIndex: riskIndex);
+                      final criticalThreshold = ref.watch(settingsProvider.select((s) => s.criticalRiskThreshold));
+                      return RiskGauge(riskIndex: riskIndex, criticalThreshold: criticalThreshold);
                     }
                   ),
                   const SizedBox(height: 20),

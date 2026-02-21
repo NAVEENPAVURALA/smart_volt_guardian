@@ -6,12 +6,16 @@ class AppSettings {
   final bool useFahrenheit;
   final bool demoMode;
   final double voltageThreshold;
+  final int criticalRiskThreshold;
+  final double crankingSagThreshold;
 
   AppSettings({
     this.notificationsEnabled = true,
     this.useFahrenheit = false,
     this.demoMode = false,
     this.voltageThreshold = 11.5,
+    this.criticalRiskThreshold = 80,
+    this.crankingSagThreshold = 10.5,
   });
 
   AppSettings copyWith({
@@ -19,12 +23,16 @@ class AppSettings {
     bool? useFahrenheit,
     bool? demoMode,
     double? voltageThreshold,
+    int? criticalRiskThreshold,
+    double? crankingSagThreshold,
   }) {
     return AppSettings(
       notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
       useFahrenheit: useFahrenheit ?? this.useFahrenheit,
       demoMode: demoMode ?? this.demoMode,
       voltageThreshold: voltageThreshold ?? this.voltageThreshold,
+      criticalRiskThreshold: criticalRiskThreshold ?? this.criticalRiskThreshold,
+      crankingSagThreshold: crankingSagThreshold ?? this.crankingSagThreshold,
     );
   }
 }
@@ -51,6 +59,14 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   void setVoltageThreshold(double value) {
     state = state.copyWith(voltageThreshold: value);
+  }
+
+  void setCriticalRiskThreshold(int value) {
+    state = state.copyWith(criticalRiskThreshold: value);
+  }
+
+  void setCrankingSagThreshold(double value) {
+    state = state.copyWith(crankingSagThreshold: value);
   }
 
   void resetToDefaults() {

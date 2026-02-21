@@ -115,6 +115,9 @@ def generate_telemetry():
 
         try:
             doc_ref.set(data)
+            if total_ticks % 5 == 0:
+                history_ref = doc_ref.collection('history')
+                history_ref.add(data)
             print(f"📡 TX: {data['voltage']}V | {data['current']}A | RUL: {data['rulDays']} days")
         except Exception as e:
             print(f"❌ Upload Error: {e}")

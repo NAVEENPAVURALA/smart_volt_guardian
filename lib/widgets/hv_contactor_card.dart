@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/telemetry_service.dart';
+import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 
 // Local provider to hold the last captured cranking voltage
@@ -11,6 +12,8 @@ class CrankingVoltageNotifier extends Notifier<double?> {
   double? build() {
     ref.listen(batteryStateProvider, (previous, next) {
       next.whenData((state) {
+        // Read the user threshold directly here? No, ref is not available for providers inside next.whenData easily unless we watch settings.
+        // We will just let the UI handle the thresholds for color/text grading. The tracking remains < 10.5V.
         // 1. CRANKING DETECTED (< 10.5V)
         if (state.voltage < 10.5 && state.voltage > 5.0) {
            updateCrank(state.voltage);
@@ -47,14 +50,8 @@ class HvContactorCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
 
-    final batteryStateAsync = ref.watch(batteryStateProvider);
     final lastCrank = ref.watch(crankingVoltageProvider);
-    
-    // We need the current temperature to grade the cranking performance
-    double currentTemp = 25.0; // Default fallback
-    batteryStateAsync.whenData((state) {
-      currentTemp = state.temperature;
-    });
+    final sagThreshold = ref.watch(settingsProvider.select((s) => s.crankingSagThreshold));
 
     return Container(
       width: double.infinity,
@@ -91,7 +88,7 @@ class HvContactorCard extends ConsumerWidget {
                 ],
               ),
               if (lastCrank != null)
-                _buildStatusTag(lastCrank, currentTemp),
+                _buildStatusTag(lastCrank, sagThreshold),
             ],
           ),
           const SizedBox(height: 16),
@@ -122,15 +119,14 @@ class HvContactorCard extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
                    Text(
-                    // Show the temperature used for the calculation to the user
-                    lastCrank != null ? "Last Pre-Charge Sag (@ ${currentTemp.toStringAsFixed(0)}°C)" : "Last Pre-Charge Sag",
+                    lastCrank != null ? "Last Pre-Charge Sag" : "Last Pre-Charge Sag",
                     style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 10),
                   ),
                   const SizedBox(height: 4),
                    Text(
-                    lastCrank == null ? "Waiting for start..." : _getStatusText(lastCrank, currentTemp),
+                    lastCrank == null ? "Waiting for start..." : _getStatusText(lastCrank, sagThreshold),
                     style: TextStyle(
-                      color: _getStatusColor(lastCrank, currentTemp),
+                      color: _getStatusColor(lastCrank, sagThreshold),
                       fontWeight: FontWeight.bold,
                       fontSize: 14
                     ),
@@ -146,7 +142,7 @@ class HvContactorCard extends ConsumerWidget {
             child: LinearProgressIndicator(
               value: lastCrank == null ? 0 : (lastCrank / 12.0).clamp(0.0, 1.0),
               backgroundColor: Colors.white.withValues(alpha: 0.1),
-              color: _getStatusColor(lastCrank, currentTemp),
+              color: _getStatusColor(lastCrank, sagThreshold),
               minHeight: 6,
             ),
           ),
@@ -155,9 +151,9 @@ class HvContactorCard extends ConsumerWidget {
     );
   }
 
-  Widget _buildStatusTag(double voltage, double temp) {
-    Color color = _getStatusColor(voltage, temp);
-    String text = _getStatusTextShort(voltage, temp);
+  Widget _buildStatusTag(double voltage, double threshold) {
+    Color color = _getStatusColor(voltage, threshold);
+    String text = _getStatusTextShort(voltage, threshold);
     
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -173,36 +169,22 @@ class HvContactorCard extends ConsumerWidget {
     );
   }
 
-  // Industry Standard: Cold batteries drop voltage much lower during crank.
-  // We dynamically adjust the "pass" threshold based on temp.
-  double _getDynamicOptimalThreshold(double temp) {
-    if (temp < 0) return 8.5; // Freezing, massive sag expected
-    if (temp < 15) return 9.0; // Cold
-    return 9.6; // Normal/Warm
-  }
-
-  double _getDynamicWeakThreshold(double temp) {
-    if (temp < 0) return 7.0; 
-    if (temp < 15) return 7.5;
-    return 8.0; 
-  }
-
-  Color _getStatusColor(double? voltage, double temp) {
+  Color _getStatusColor(double? voltage, double threshold) {
     if (voltage == null) return Colors.grey;
-    if (voltage > _getDynamicOptimalThreshold(temp)) return AppTheme.neonGreen;
-    if (voltage > _getDynamicWeakThreshold(temp)) return Colors.orange;
+    if (voltage > threshold) return AppTheme.neonGreen;
+    if (voltage > (threshold - 1.0)) return Colors.orange;
     return AppTheme.neonRed;
   }
 
-  String _getStatusTextShort(double voltage, double temp) {
-    if (voltage > _getDynamicOptimalThreshold(temp)) return "OPTIMAL";
-    if (voltage > _getDynamicWeakThreshold(temp)) return "WEAK";
+  String _getStatusTextShort(double voltage, double threshold) {
+    if (voltage > threshold) return "OPTIMAL";
+    if (voltage > (threshold - 1.0)) return "WEAK";
     return "FAIL";
   }
 
-  String _getStatusText(double voltage, double temp) {
-     if (voltage > _getDynamicOptimalThreshold(temp)) return "System Healthy";
-     if (voltage > _getDynamicWeakThreshold(temp)) return "Check Battery";
+  String _getStatusText(double voltage, double threshold) {
+     if (voltage > threshold) return "System Healthy";
+     if (voltage > (threshold - 1.0)) return "Check Battery";
      return "Replace Battery";
   }
 }

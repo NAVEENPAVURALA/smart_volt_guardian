@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:fl_chart/fl_chart.dart';
 import '../models/battery_state.dart';
 import '../services/telemetry_service.dart';
 import '../theme/app_theme.dart';
@@ -10,18 +11,19 @@ class AnalyticsScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final batteryStateAsync = ref.watch(batteryStateProvider);
+    final historyAsync = ref.watch(historyProvider);
 
     return Scaffold(
       backgroundColor: Colors.transparent, // Let parent handle background
       body: batteryStateAsync.when(
-        data: (state) => _buildAnalyticsDashboard(context, state),
+        data: (state) => _buildAnalyticsDashboard(context, state, historyAsync),
         loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue)),
         error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: AppTheme.neonRed))),
       ),
     );
   }
 
-  Widget _buildAnalyticsDashboard(BuildContext context, BatteryState state) {
+  Widget _buildAnalyticsDashboard(BuildContext context, BatteryState state, AsyncValue<List<BatteryState>> historyAsync) {
     return RefreshIndicator(
       onRefresh: () async {
         // Refresh simulation or trigger data fetch if needed
@@ -34,6 +36,8 @@ class AnalyticsScreen extends ConsumerWidget {
           _buildFotaReadinessCard(state),
           const SizedBox(height: 24),
           _buildVampireDrainCard(state),
+          const SizedBox(height: 24),
+          _buildHistoricalTrendsCard(historyAsync),
         ],
       ),
     );
@@ -297,6 +301,99 @@ class AnalyticsScreen extends ConsumerWidget {
                  )
                ],
              )
+          )
+        ],
+      )
+    );
+  }
+
+  Widget _buildHistoricalTrendsCard(AsyncValue<List<BatteryState>> historyAsync) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: AppTheme.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.05)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.timeline, color: Colors.white70),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text(
+                  "VOLTAGE HISTORY (LAST 4 MINS)",
+                  style: TextStyle(
+                    color: Colors.white70,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.2,
+                  ),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          SizedBox(
+            height: 200,
+            child: historyAsync.when(
+              data: (history) {
+                if (history.isEmpty) {
+                  return const Center(child: Text("Waiting for historical data...", style: TextStyle(color: AppTheme.textGrey)));
+                }
+                
+                // We want oldest first for L-to-R graph, but firestore returned descending (newest first).
+                final reversed = history.reversed.toList();
+                
+                List<FlSpot> spots = [];
+                for (int i = 0; i < reversed.length; i++) {
+                  spots.add(FlSpot(i.toDouble(), reversed[i].voltage));
+                }
+
+                return LineChart(
+                  LineChartData(
+                    gridData: const FlGridData(show: true, drawVerticalLine: false),
+                    titlesData: FlTitlesData(
+                      show: true,
+                      topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
+                      bottomTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)), // Hide X axis labels for now
+                      leftTitles: AxisTitles(
+                        sideTitles: SideTitles(
+                          showTitles: true,
+                          reservedSize: 40,
+                          getTitlesWidget: (value, meta) {
+                            return Text("${value.toStringAsFixed(1)}V", style: const TextStyle(color: AppTheme.textGrey, fontSize: 10));
+                          },
+                        ),
+                      ),
+                    ),
+                    borderData: FlBorderData(show: false),
+                    minY: 8.0,
+                    maxY: 15.0,
+                    lineBarsData: [
+                      LineChartBarData(
+                        spots: spots,
+                        isCurved: true,
+                        color: AppTheme.primaryBlue,
+                        barWidth: 3,
+                        isStrokeCapRound: true,
+                        dotData: const FlDotData(show: false),
+                        belowBarData: BarAreaData(
+                          show: true,
+                          color: AppTheme.primaryBlue.withValues(alpha: 0.1),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+              loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue)),
+              error: (err, stack) => Center(child: Text('Error (Are you in Demo Mode?):\n$err', style: const TextStyle(color: AppTheme.neonRed))),
+            )
           )
         ],
       )

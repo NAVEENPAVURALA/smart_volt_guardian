@@ -23,8 +23,21 @@ final batteryStateProvider = StreamProvider<BatteryState>((ref) {
   return service.getTelemetryStream();
 });
 
+// Stream Provider for Historical Timeseries Data
+final historyProvider = StreamProvider<List<BatteryState>>((ref) {
+  final settings = ref.watch(settingsProvider);
+  
+  if (settings.demoMode) {
+    return MockTelemetryService().getHistoryStream();
+  }
+
+  final service = ref.watch(telemetryServiceProvider);
+  return service.getHistoryStream();
+});
+
 abstract class TelemetryService {
   Stream<BatteryState> getTelemetryStream();
+  Stream<List<BatteryState>> getHistoryStream();
 }
 
 class FirestoreTelemetryService implements TelemetryService {
@@ -44,6 +57,20 @@ class FirestoreTelemetryService implements TelemetryService {
           } else {
             return BatteryState.initial();
           }
+        });
+  }
+
+  @override
+  Stream<List<BatteryState>> getHistoryStream() {
+    return _firestore
+        .collection('telemetry')
+        .doc('latest_state')
+        .collection('history')
+        .orderBy('timestamp', descending: true)
+        .limit(50) // e.g., last 50 data points (250s of history at 5s intervals)
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) => BatteryState.fromSnapshot(doc)).toList();
         });
   }
 }
@@ -170,5 +197,12 @@ class MockTelemetryService implements TelemetryService {
         rulDays: rulDays,
       );
     }).asBroadcastStream();
+  }
+
+  @override
+  Stream<List<BatteryState>> getHistoryStream() {
+    // For demo mode, return an empty list since building a historical simulation is complex.
+    // In a real app, Demo Mode history would be generated.
+    return Stream.value([]);
   }
 }

@@ -40,6 +40,22 @@ class SettingsScreen extends ConsumerWidget {
                 12.0,
                 (val) => notifier.setVoltageThreshold(val),
               ),
+              _buildSliderTile(
+                "Critical Risk Threshold",
+                "${settings.criticalRiskThreshold} / 100",
+                settings.criticalRiskThreshold.toDouble(),
+                0.0,
+                100.0,
+                (val) => notifier.setCriticalRiskThreshold(val.toInt()),
+              ),
+              _buildSliderTile(
+                "Cranking Sag Alert Level",
+                "${settings.crankingSagThreshold.toStringAsFixed(1)} V",
+                settings.crankingSagThreshold,
+                8.0,
+                11.5,
+                (val) => notifier.setCrankingSagThreshold(val),
+              ),
 
               const SizedBox(height: 24),
               _buildSectionHeader("PREFERENCES"),

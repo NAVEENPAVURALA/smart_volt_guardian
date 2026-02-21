@@ -5,8 +5,9 @@ import '../theme/app_theme.dart';
 
 class RiskGauge extends StatefulWidget {
   final int riskIndex;
+  final int criticalThreshold;
 
-  const RiskGauge({super.key, required this.riskIndex});
+  const RiskGauge({super.key, required this.riskIndex, this.criticalThreshold = 75});
 
   @override
   State<RiskGauge> createState() => _RiskGaugeState();
@@ -45,7 +46,7 @@ class _RiskGaugeState extends State<RiskGauge> with SingleTickerProviderStateMix
   @override
   Widget build(BuildContext context) {
     final riskColor = _getRiskColor(widget.riskIndex);
-    final isCritical = widget.riskIndex > 75;
+    final isCritical = widget.riskIndex >= widget.criticalThreshold;
 
     if (!isCritical) {
       _controller.stop();
