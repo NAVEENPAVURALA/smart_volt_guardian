@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/telemetry_service.dart';
+import '../providers/settings_provider.dart';
+import '../models/battery_state.dart';
 import '../theme/app_theme.dart';
 import '../widgets/hv_contactor_card.dart';
 
@@ -11,6 +13,7 @@ class DiagnosticReportScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final batteryStateAsync = ref.watch(batteryStateProvider);
     final lastContactorSag = ref.watch(crankingVoltageProvider);
+    final settings = ref.watch(settingsProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -34,23 +37,31 @@ class DiagnosticReportScreen extends ConsumerWidget {
         ],
       ),
       body: batteryStateAsync.when(
-        data: (state) => _buildReport(context, state, lastContactorSag),
+        data: (state) => _buildReport(context, state, lastContactorSag, settings),
         loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue)),
         error: (_, _) => const Center(child: Text("Error generating report", style: TextStyle(color: AppTheme.neonRed))),
       ),
     );
   }
 
-  Widget _buildReport(BuildContext context, state, double? lastContactorSag) {
+  Widget _buildReport(BuildContext context, BatteryState state, double? lastContactorSag, AppSettings settings) {
     bool isContactorOptimal = false;
     if (lastContactorSag != null) {
-        double threshold = state.temperature < 0 ? 8.5 : (state.temperature < 15 ? 9.0 : 9.6);
-        isContactorOptimal = lastContactorSag > threshold;
+        // Use user-defined settings instead of hardcoded temperature approximations
+        isContactorOptimal = lastContactorSag > settings.crankingSagThreshold;
     }
 
-    bool isDcDcTested = state.voltage >= 13.0; // Assume tested only if engine on
-    bool isDcDcOptimal = state.voltage > 13.5 && state.voltage < 14.8;
-    bool isHealthOptimal = state.soc > 70;
+    // DC-DC Logic:
+    // < 12.5V: Contactors Open (Off)
+    // 12.5V - 13.2V: Floating / Energy Save
+    // > 13.2V: Active Charging
+    bool isDcDcTested = state.voltage >= 12.5; 
+    bool isDcDcOptimal = state.voltage > 12.8 && state.voltage < 14.8;
+    
+    // Parasitic Drain (Current < -1.5A while Engine Off < 13.0V)
+    bool isParasiticDrain = state.voltage < 13.0 && state.current < -1.5;
+
+    bool isHealthOptimal = state.soc > 70 && !isParasiticDrain;
     
     // Overall Status
     bool systemPass = isContactorOptimal && (!isDcDcTested || isDcDcOptimal) && isHealthOptimal;
@@ -103,13 +114,19 @@ class DiagnosticReportScreen extends ConsumerWidget {
              "HV Contactor Draw", 
              lastContactorSag == null ? "Not Tested" : "${lastContactorSag.toStringAsFixed(2)} V", 
              lastContactorSag == null ? Colors.grey : (isContactorOptimal ? AppTheme.neonGreen : Colors.orange),
-             "Temp Compensated Result"
+             "Threshold: > ${settings.crankingSagThreshold.toStringAsFixed(1)} V"
           ),
           _buildReportRow(
              "DC-DC Output", 
-             state.voltage < 13.0 ? "Contactors Open" : "${state.voltage.toStringAsFixed(2)} V", 
-             state.voltage < 13.0 ? Colors.grey : (isDcDcOptimal ? AppTheme.neonGreen : Colors.orange),
-             "Charging System Efficiency"
+             state.voltage < 12.5 ? "Contactors Open" : "${state.voltage.toStringAsFixed(2)} V", 
+             state.voltage < 12.5 ? Colors.grey : (isDcDcOptimal ? AppTheme.neonGreen : Colors.orange),
+             state.voltage < 13.2 && state.voltage >= 12.5 ? "Energy Save Mode" : "Charging System Efficiency"
+          ),
+          _buildReportRow(
+             "Vampire Drain Check", 
+             isParasiticDrain ? "HIGH DRAIN FOUND" : "OPTIMAL", 
+             isParasiticDrain ? AppTheme.neonRed : AppTheme.neonGreen,
+             "Resting draw < 1.0A"
           ),
           
           const SizedBox(height: 32),

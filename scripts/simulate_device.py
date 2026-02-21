@@ -25,16 +25,24 @@ def generate_telemetry():
     
     # State tracking
     soh_degradation = 0.0
+    ambient_temp = 25.0 # Start comfortable
+    weather_trend = 1.0 # 1=warming, -1=cooling
 
     while True:
         # Loop Logic: 30 seconds per cycle at 1Hz = 30 ticks
         cycle_tick = total_ticks % 30
         t = total_ticks * 1.0
         
+        # Slow drifting ambient temperature (real-world weather simulation)
+        if total_ticks % 600 == 0: # Change trend occasionally
+            weather_trend = random.choice([1.0, -1.0])
+        ambient_temp += (random.random() * 0.1 * weather_trend)
+        ambient_temp = max(-10.0, min(45.0, ambient_temp)) # Clamp between -10C and 45C
+        
         # State Machine Variables
         voltage = 12.6
         current = 0.5
-        temp = 35.0
+        temp = ambient_temp
         risk = 15
         is_anomaly = False
         
@@ -44,20 +52,20 @@ def generate_telemetry():
              if total_ticks % 150 < 30: # Once every 5 cycles
                  voltage = 12.2 + (math.sin(t) * 0.02)
                  current = -1.5 # High parasitic drain!
-                 temp = 28.0
+                 temp = ambient_temp + 2.0
                  is_anomaly = True
                  risk = 60
              else:
                  voltage = 12.6 + (math.sin(t) * 0.02)
                  current = -0.2
-                 temp = 30.0
+                 temp = ambient_temp
              
         # 2. TELEMATICS WAKEUP (AdrenoX App Refresh) -> Ticks 5-7
         elif cycle_tick < 7:
              voltage = 12.1 + (random.random() * 0.1)
              current = -8.5 + (random.random() * 2) # 8.5A Wakeup drain
              risk = 65
-             temp = 30.0
+             temp = ambient_temp + 2.0
              is_anomaly = True # Mark as anomaly for the UI to catch
              
         # 3. HV CONTACTOR CLOSE (Pre-Charge) -> Ticks 7-8
@@ -65,14 +73,14 @@ def generate_telemetry():
              voltage = 9.5 + (random.random() * 0.5)
              current = -150.0 + (random.random() * 20)
              risk = 50
-             temp = 32.0
+             temp = ambient_temp + 5.0
              
         # 3. ALTERNATOR CHARGING (6-20s) -> Ticks 6-20
         elif cycle_tick < 20:
              progress = (cycle_tick - 6) / 14.0
              voltage = 13.8 + (0.6 * math.sin(t * 0.5))
              current = 15.0 * (1 - progress) + 2.0
-             temp = 30.0 + (10.0 * progress)
+             temp = ambient_temp + 10.0 + (10.0 * progress)
              risk = 10
              
         # 4. LOAD TEST (20-25s) -> Ticks 20-25
@@ -88,18 +96,28 @@ def generate_telemetry():
              current = 5.0
              risk = 20
 
-        # Intelligent SOC Calculation (Based on Resting Voltage 11.8V - 12.8V)
-        # Only accurate when resting, but we approximate it continuously for demo
-        calculated_soc = ((voltage - 11.8) / (12.8 - 11.8)) * 100.0
-        # Basic Temperature Compensation: Cold drops apparent SOC
-        if temp < 10.0:
-            calculated_soc -= (10.0 - temp) * 0.5
+        # Non-Linear SOC Calculation (Approximating Lead-Acid discharge curve)
+        # Instead of straight linear 11.8->12.8, we use an exponential curve representing surface charge dropout
+        v_diff = max(0, min(1.0, voltage - 11.8)) 
+        calculated_soc = (math.pow(v_diff, 0.6) / math.pow(1.0, 0.6)) * 100.0
+
+        # Dynamic Temperature Compensation: Cold severely hampers chemical reaction
+        if temp < 15.0:
+            calculated_soc -= (15.0 - temp) * 1.5 # Steeper drop in extreme cold
             
         soc = max(0.0, min(100.0, calculated_soc))
 
-        # RUL Logic
-        soh_degradation += 0.0005 # Adjusted decay for 1Hz
-        soh = max(0, 100.0 - soh_degradation)
+        # Accelerated RUL Degradation Logic
+        # Degrades faster when cold, hot, or under heavy load
+        base_decay = 0.0005
+        stress_modifier = 1.0
+        if temp < 0 or temp > 40:
+             stress_modifier += 2.0
+        if current < -50:
+             stress_modifier += 3.0
+        
+        soh_degradation += (base_decay * stress_modifier)
+        soh = max(0, 100.0 - (math.pow(soh_degradation, 1.1))) # Exponential decay over time
         rul_days = int(1200 * (soh / 100.0))
 
         data = {
