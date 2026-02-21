@@ -301,9 +301,88 @@ class AnalyticsScreen extends ConsumerWidget {
                  )
                ],
              )
-          )
+          ),
+          if (isParked && state.current.abs() > 0.4) ...[
+            const SizedBox(height: 24),
+            const Text("ENERGY AUDIT BREAKDOWN", style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.0)),
+            const SizedBox(height: 16),
+            SizedBox(
+              height: 160,
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 4,
+                    child: PieChart(
+                      PieChartData(
+                        sectionsSpace: 2,
+                        centerSpaceRadius: 35,
+                        sections: _generatePieSections(state.current.abs()),
+                      )
+                    )
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    flex: 5,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: _generatePieLegend(state.current.abs()),
+                    )
+                  )
+                ]
+              )
+            )
+          ]
         ],
       )
+    );
+  }
+
+  List<PieChartSectionData> _generatePieSections(double drainA) {
+    if (drainA > 5.0) {
+      // AdrenoX heavy drain
+      return [
+        PieChartSectionData(color: AppTheme.neonRed, value: 75, title: '75%', radius: 30, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+        PieChartSectionData(color: Colors.orange, value: 15, title: '15%', radius: 25, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+        PieChartSectionData(color: AppTheme.neonGreen, value: 10, title: '10%', radius: 20, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+      ];
+    } else {
+      // Dashcam / accessory drain
+      return [
+        PieChartSectionData(color: Colors.orange, value: 65, title: '65%', radius: 30, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+        PieChartSectionData(color: AppTheme.primaryBlue, value: 25, title: '25%', radius: 25, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+        PieChartSectionData(color: AppTheme.neonGreen, value: 10, title: '10%', radius: 20, titleStyle: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.white)),
+      ];
+    }
+  }
+
+  List<Widget> _generatePieLegend(double drainA) {
+    if (drainA > 5.0) {
+      return [
+        _buildLegendItem(AppTheme.neonRed, "Telematics / AdrenoX"),
+        const SizedBox(height: 8),
+        _buildLegendItem(Colors.orange, "BCM Module Wakeups"),
+        const SizedBox(height: 8),
+        _buildLegendItem(AppTheme.neonGreen, "Base Deep Sleep"),
+      ];
+    } else {
+      return [
+        _buildLegendItem(Colors.orange, "Accessory / Dashcam"),
+        const SizedBox(height: 8),
+        _buildLegendItem(AppTheme.primaryBlue, "Security Sensors"),
+        const SizedBox(height: 8),
+        _buildLegendItem(AppTheme.neonGreen, "Base Deep Sleep"),
+      ];
+    }
+  }
+
+  Widget _buildLegendItem(Color color, String label) {
+    return Row(
+      children: [
+        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        const SizedBox(width: 8),
+        Expanded(child: Text(label, style: const TextStyle(color: Colors.white70, fontSize: 11), overflow: TextOverflow.ellipsis)),
+      ],
     );
   }
 

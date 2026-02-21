@@ -251,6 +251,65 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                   ),
                   const SizedBox(height: 24),
 
+                  const SizedBox(height: 24),
+                  
+                  // NEW ELON MODE: AI Predictive Failure Alert
+                  Consumer(
+                    builder: (context, ref, child) {
+                      final rulDays = ref.watch(batteryStateProvider.select((s) => s.value?.rulDays ?? 0));
+                      final state = ref.watch(batteryStateProvider.select((s) => s.value));
+                      if (rulDays > 300 || state == null) return const SizedBox.shrink(); // Only show if battery is aging
+                      
+                      DateTime predictedDate = DateTime.now().add(Duration(days: rulDays));
+                      String formattedDate = "${_monthName(predictedDate.month)} ${predictedDate.day}, ${predictedDate.year}";
+
+                      return Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Colors.black, // Sleek black
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppTheme.neonRed.withValues(alpha: 0.3)),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppTheme.neonRed.withValues(alpha: 0.1),
+                              blurRadius: 20,
+                              spreadRadius: 2,
+                            )
+                          ]
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.memory, color: AppTheme.neonRed),
+                                const SizedBox(width: 8),
+                                const Text("PREDICTIVE INTELLIGENCE", style: TextStyle(color: AppTheme.neonRed, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+                                const Spacer(),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.neonRed.withValues(alpha: 0.2),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: const Text("AI FORECAST", style: TextStyle(color: AppTheme.neonRed, fontSize: 10, fontWeight: FontWeight.bold)),
+                                )
+                              ],
+                            ),
+                            const SizedBox(height: 16),
+                            const Text("Predicted 12V Battery Failure Date:", style: TextStyle(color: Colors.white70, fontSize: 13)),
+                            const SizedBox(height: 4),
+                            Text(formattedDate, style: const TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w900, letterSpacing: 1.0)),
+                            const SizedBox(height: 12),
+                            Text("Based on multi-variable RUL deterioration curve and cyclic stress history. Vehicle will fail to start after this date.", style: TextStyle(color: Colors.white.withValues(alpha: 0.5), fontSize: 12, height: 1.4)),
+                          ],
+                        ),
+                      );
+                    }
+                  ),
+                  const SizedBox(height: 24),
+
                   // 4. [RESTORED] Diagnostics Log
                   const DiagnosticsLog(),
 
@@ -290,6 +349,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
       ],
     );
+  }
+
+  String _monthName(int month) {
+    const names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    if (month >= 1 && month <= 12) return names[month - 1];
+    return "";
   }
 
   void _showAnomalyDialog(BuildContext context, {bool isParasiticDrain = false, bool isAdrenoxWakeup = false, BatteryState? state}) {

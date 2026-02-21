@@ -5,6 +5,7 @@ import time
 import math
 import random
 import os
+import threading
 
 # Initialize Firebase Admin
 cred = credentials.Certificate('serviceAccountKey.json')
@@ -18,6 +19,23 @@ def generate_telemetry():
     
     print("🚀 Starting SmartVolt Physics Engine (External Device)...")
     
+    # ---------------------------------------------------------
+    # Bidirectional Command Listener
+    # ---------------------------------------------------------
+    is_deep_sleep = False
+    
+    def on_command_snapshot(doc_snapshot, changes, read_time):
+        nonlocal is_deep_sleep
+        for doc in doc_snapshot:
+            if doc.exists:
+                cmd = doc.to_dict().get('command')
+                if cmd == 'DEEP_SLEEP' and not is_deep_sleep:
+                    is_deep_sleep = True
+                    print("\n⚠️ [REMOTE CONTROL] FORCE DEEP SLEEP ACTIVE. Killing all auxiliary power.")
+
+    cmd_watch = db.collection('commands').document('active').on_snapshot(on_command_snapshot)
+    # ---------------------------------------------------------
+
     collection_ref = db.collection('telemetry')
     doc_ref = collection_ref.document('latest_state')
 
@@ -95,6 +113,13 @@ def generate_telemetry():
              voltage = 14.1
              current = 5.0
              risk = 20
+
+        # --- "Elon Mode" Remote Override Control ---
+        if is_deep_sleep and current < 0:
+             current = -0.1  # Force minimal standby current
+             is_anomaly = False # Clean state since we initiated it
+             risk = max(5, risk - 40) # Drop risk significantly
+        # -------------------------------------------
 
         # Non-Linear SOC Calculation (Approximating Lead-Acid discharge curve)
         # Instead of straight linear 11.8->12.8, we use an exponential curve representing surface charge dropout

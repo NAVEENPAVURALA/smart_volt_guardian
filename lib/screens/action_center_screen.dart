@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/battery_state.dart';
 import '../services/telemetry_service.dart';
+import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 
 class ActionCenterScreen extends ConsumerStatefulWidget {
@@ -121,7 +123,8 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
                   elevation: _isDeepSleepSent ? 0 : 4,
                 ),
                 onPressed: _isDeepSleepSent ? null : () async {
-                   // Mocking the API call to vehicle
+                   final settings = ref.read(settingsProvider);
+                   
                    showDialog(
                      context: context,
                      barrierDismissible: false,
@@ -137,8 +140,19 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
                         ),
                      )
                    );
-
-                   await Future.delayed(const Duration(seconds: 2));
+                   
+                   if (!settings.demoMode) {
+                      try {
+                        await FirebaseFirestore.instance.collection('commands').doc('active').set({
+                          'command': 'DEEP_SLEEP',
+                          'timestamp': FieldValue.serverTimestamp(),
+                        });
+                      } catch (e) {
+                         debugPrint("Failed to send command: $e");
+                      }
+                   } else {
+                      await Future.delayed(const Duration(seconds: 2));
+                   }
                    
                    if (!mounted) return;
                    
