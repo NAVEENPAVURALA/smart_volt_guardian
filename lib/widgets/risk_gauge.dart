@@ -37,6 +37,20 @@ class _RiskGaugeState extends State<RiskGauge> with SingleTickerProviderStateMix
     super.dispose();
   }
 
+  @override
+  void didUpdateWidget(RiskGauge oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final isCritical = widget.riskIndex >= widget.criticalThreshold;
+    final wasCritical = oldWidget.riskIndex >= oldWidget.criticalThreshold;
+    
+    if (isCritical && !wasCritical) {
+      _controller.repeat(reverse: true);
+    } else if (!isCritical && wasCritical) {
+      _controller.stop();
+      _controller.value = 0;
+    }
+  }
+
   Color _getRiskColor(int value) {
     if (value <= 30) return AppTheme.neonGreen;
     if (value <= 70) return Colors.amber;
@@ -48,11 +62,9 @@ class _RiskGaugeState extends State<RiskGauge> with SingleTickerProviderStateMix
     final riskColor = _getRiskColor(widget.riskIndex);
     final isCritical = widget.riskIndex >= widget.criticalThreshold;
 
-    if (!isCritical) {
-      _controller.stop();
-      _controller.value = 0; // Reset
-    } else if (!_controller.isAnimating) {
-      _controller.repeat(reverse: true);
+    // Fast-path initialization if gauge spawns in critical state
+    if (isCritical && !_controller.isAnimating) {
+        _controller.repeat(reverse: true);
     }
 
     return AnimatedBuilder(

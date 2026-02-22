@@ -196,8 +196,24 @@ class MockTelemetryService implements TelemetryService {
 
   @override
   Stream<List<BatteryState>> getHistoryStream() {
-    // For demo mode, return an empty list since building a historical simulation is complex.
-    // In a real app, Demo Mode history would be generated.
-    return Stream.value([]);
+    // Generate an elegant procedural fake history for Demo Mode
+    List<BatteryState> fakeHistory = [];
+    for (int i = 0; i < 50; i++) {
+        double t = i * 0.2;
+        double voltage = 12.8 + (sin(t) * 1.2); // Sweeps between 11.6 and 14.0
+        fakeHistory.add(
+            BatteryState(
+                voltage: voltage,
+                temperature: 25.0,
+                current: 0.0,
+                soc: 100.0,
+                riskIndex: 10,
+                isAnomaly: false,
+                rulDays: 1200,
+            )
+        );
+    }
+    // AnalyticsScreen expects newest first (descending timestamp order)
+    return Stream.value(fakeHistory.reversed.toList());
   }
 }
