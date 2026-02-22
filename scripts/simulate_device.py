@@ -7,11 +7,11 @@ import random
 import os
 import threading
 
-# Initialize Firebase Admin
-cred = credentials.Certificate('serviceAccountKey.json')
-if not firebase_admin._apps:
-    firebase_admin.initialize_app(cred)
-
+# Initialize Firebase Admin securely using absolute path resolution
+script_dir = os.path.dirname(os.path.abspath(__file__))
+cred_path = os.path.join(script_dir, 'serviceAccountKey.json')
+cred = credentials.Certificate(cred_path)
+firebase_admin.initialize_app(cred)
 db = firestore.client()
 
 def generate_telemetry():
