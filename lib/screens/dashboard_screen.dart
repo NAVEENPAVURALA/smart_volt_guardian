@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../services/telemetry_service.dart';
 import '../models/battery_state.dart';
@@ -363,6 +364,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     setState(() {
       _isDialogVisible = true;
     });
+
+    // Haptic feedback for critical alert
+    HapticFeedback.heavyImpact();
 
     String titleText = "CRITICAL ALERT";
     String bodyText = "Anomaly detected in auxiliary battery system! Immediate inspection recommended to prevent failure.";

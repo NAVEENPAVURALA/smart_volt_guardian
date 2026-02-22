@@ -78,10 +78,10 @@ class FirestoreTelemetryService implements TelemetryService {
 class MockTelemetryService implements TelemetryService {
   @override
   Stream<BatteryState> getTelemetryStream() {
-    // 50ms tick = 20Hz.
-    // 1000 ticks = 50 seconds total loop.
-    return Stream.periodic(const Duration(milliseconds: 50), (totalTicks) {
-      int cycleTick = totalTicks % 600; // 30-second loop
+    // 1000ms tick = 1Hz (matches real device simulator rate).
+    // 30 ticks = 30-second loop.
+    return Stream.periodic(const Duration(milliseconds: 1000), (totalTicks) {
+      int cycleTick = totalTicks % 30; // 30-second loop
       double t = totalTicks * 0.05; // continuous time for noise
       Random rng = Random(totalTicks);
 
@@ -98,18 +98,18 @@ class MockTelemetryService implements TelemetryService {
       double current = 0.5;
       
       // Drifting Ambient Weather
-      double weatherTrend = (totalTicks ~/ 6000) % 2 == 0 ? 1.0 : -1.0;
-      double ambientTemp = 25.0 + ((totalTicks % 6000) * 0.005 * weatherTrend);
+      double weatherTrend = (totalTicks ~/ 600) % 2 == 0 ? 1.0 : -1.0;
+      double ambientTemp = 25.0 + ((totalTicks % 600) * 0.05 * weatherTrend);
       ambientTemp = ambientTemp.clamp(-10.0, 45.0);
       
       double tempBase = ambientTemp;
       bool isAnomaly = false;
       int risk = 15;
 
-      // 1. ENGINE OFF (0-5s) -> Ticks 0-100
-      if (cycleTick < 100) {
+      // 1. ENGINE OFF (0-5s) -> Ticks 0-5
+      if (cycleTick < 5) {
         // Occasional Parasitic Drain (Once every 5 loops)
-        if (totalTicks % 3000 < 600) {
+        if (totalTicks % 150 < 30) {
            voltage = 12.2 + (sin(t) * 0.02);
            current = -1.5; // Drain!
            tempBase = 28.0;
@@ -121,16 +121,16 @@ class MockTelemetryService implements TelemetryService {
            tempBase = 30.0;
         }
       } 
-      // 2. TELEMATICS WAKEUP (AdrenoX App Refresh) -> Ticks 100-140
-      else if (cycleTick < 140) {
+      // 2. TELEMATICS WAKEUP (AdrenoX App Refresh) -> Ticks 5-7
+      else if (cycleTick < 7) {
         voltage = 12.1 + (rng.nextDouble() * 0.1);
         current = -8.5 + (rng.nextDouble() * 2); // 8.5A Wakeup drain
         risk = 65;
         tempBase = 30.0;
         isAnomaly = true;
       }
-      // 3. HV CONTACTOR CLOSE (Pre-Charge) -> Ticks 140-160
-      else if (cycleTick < 160) {
+      // 3. HV CONTACTOR CLOSE (Pre-Charge) -> Ticks 7-8
+      else if (cycleTick < 8) {
         voltage = 9.5 + (rng.nextDouble() * 0.5); // Huge drop
         current = -150.0 + (rng.nextDouble() * 20); // Massive draw
         risk = 50; // Temporary stress
@@ -138,22 +138,22 @@ class MockTelemetryService implements TelemetryService {
         // Cranking heats up the battery chemically
         tempBase = 32.0; 
       }
-      // 4. DC-DC CHARGING (200-400) -> Ticks 160-400
-      else if (cycleTick < 400) {
+      // 4. DC-DC CHARGING -> Ticks 8-20
+      else if (cycleTick < 20) {
         // Recovery curve
-        double progress = (cycleTick - 120) / 280.0;
+        double progress = (cycleTick - 8) / 12.0;
         voltage = 13.8 + (0.6 * sin(t * 0.5)) + (rng.nextDouble() * 0.1); // Charging
         current = 15.0 * (1 - progress) + 2.0; // Tapering charge current
         tempBase = 30.0 + (10.0 * progress); // Engine warming up
         risk = 10;
       }
-      // 4. HEAVY LOAD/ANOMALY (20-25s) -> Ticks 400-500
-      else if (cycleTick < 500) {
+      // 5. HEAVY LOAD/ANOMALY -> Ticks 20-25
+      else if (cycleTick < 25) {
          voltage = 11.8 + (sin(t * 2) * 0.1); // Sag
          current = -25.0; // Discharge
          risk = 85 + rng.nextInt(10);
       }
-      // 5. RECOVERY (25-30s) -> Ticks 500-600
+      // 6. RECOVERY -> Ticks 25-30
       else {
         voltage = 14.1;
         current = 5.0;

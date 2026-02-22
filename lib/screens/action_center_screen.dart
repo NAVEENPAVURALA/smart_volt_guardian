@@ -7,52 +7,45 @@ import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
 import 'diagnostic_scan_screen.dart';
 
-class ActionCenterScreen extends ConsumerStatefulWidget {
+class ActionCenterScreen extends ConsumerWidget {
   const ActionCenterScreen({super.key});
 
   @override
-  ConsumerState<ActionCenterScreen> createState() => _ActionCenterScreenState();
-}
-
-class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
-  bool _isDeepSleepSent = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final batteryStateAsync = ref.watch(batteryStateProvider);
 
     return Scaffold(
-      backgroundColor: Colors.transparent, // Let MainScaffold handle this
+      backgroundColor: Colors.transparent,
       body: batteryStateAsync.when(
-        data: (state) => _buildActionCenter(context, state),
+        data: (state) => _buildActionCenter(context, state, ref),
         loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue)),
         error: (err, _) => Center(child: Text("Error: $err", style: const TextStyle(color: AppTheme.neonRed))),
       ),
     );
   }
 
-  Widget _buildActionCenter(BuildContext context, BatteryState state) {
+  Widget _buildActionCenter(BuildContext context, BatteryState state, WidgetRef ref) {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _buildDeepSleepCard(state),
+        _buildDeepSleepCard(context, state, ref),
         const SizedBox(height: 24),
-        _buildManualDiagnosticTrigger(),
+        _buildManualDiagnosticTrigger(context),
       ],
     );
   }
 
-  Widget _buildDeepSleepCard(BatteryState state) {
+  Widget _buildDeepSleepCard(BuildContext context, BatteryState state, WidgetRef ref) {
     bool isEngineRunning = state.voltage > 13.0;
+    final isDeepSleepSent = ref.watch(deepSleepSentProvider);
     
-    // For demo purposes, we will mock the "sending command" state
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: AppTheme.surface,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: _isDeepSleepSent ? AppTheme.neonGreen.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
+          color: isDeepSleepSent ? AppTheme.neonGreen.withValues(alpha: 0.3) : Colors.white.withValues(alpha: 0.1),
         ),
       ),
       child: Column(
@@ -72,7 +65,7 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
                 ),
               ),
               const Spacer(),
-              if (_isDeepSleepSent)
+              if (isDeepSleepSent)
                  Container(
                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                    decoration: BoxDecoration(
@@ -114,16 +107,16 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
               height: 50,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _isDeepSleepSent ? AppTheme.surface : AppTheme.neonRed,
-                  foregroundColor: _isDeepSleepSent ? AppTheme.neonGreen : Colors.white,
+                  backgroundColor: isDeepSleepSent ? AppTheme.surface : AppTheme.neonRed,
+                  foregroundColor: isDeepSleepSent ? AppTheme.neonGreen : Colors.white,
                   side: BorderSide(
-                    color: _isDeepSleepSent ? AppTheme.neonGreen : Colors.transparent,
+                    color: isDeepSleepSent ? AppTheme.neonGreen : Colors.transparent,
                     width: 2,
                   ),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  elevation: _isDeepSleepSent ? 0 : 4,
+                  elevation: isDeepSleepSent ? 0 : 4,
                 ),
-                onPressed: _isDeepSleepSent ? null : () async {
+                onPressed: isDeepSleepSent ? null : () async {
                    final settings = ref.read(settingsProvider);
                    
                    showDialog(
@@ -155,12 +148,10 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
                       await Future.delayed(const Duration(seconds: 2));
                    }
                    
-                   if (!mounted) return;
+                   if (!context.mounted) return;
                    
                    Navigator.of(context).pop(); // kill dialog
-                   setState(() {
-                     _isDeepSleepSent = true;
-                   });
+                   ref.read(deepSleepSentProvider.notifier).activate();
                    
                    ScaffoldMessenger.of(context).showSnackBar(
                        const SnackBar(
@@ -170,7 +161,7 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
                    );
                 },
                 child: Text(
-                  _isDeepSleepSent ? "VEHICLE IN DEEP SLEEP" : "FORCE MODULE SHUTDOWN",
+                  isDeepSleepSent ? "VEHICLE IN DEEP SLEEP" : "FORCE MODULE SHUTDOWN",
                   style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1),
                 ),
               ),
@@ -180,7 +171,7 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
     );
   }
 
-  Widget _buildManualDiagnosticTrigger() {
+  Widget _buildManualDiagnosticTrigger(BuildContext context) {
      return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(

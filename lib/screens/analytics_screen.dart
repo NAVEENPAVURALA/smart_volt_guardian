@@ -16,17 +16,18 @@ class AnalyticsScreen extends ConsumerWidget {
     return Scaffold(
       backgroundColor: Colors.transparent, // Let parent handle background
       body: batteryStateAsync.when(
-        data: (state) => _buildAnalyticsDashboard(context, state, historyAsync),
+        data: (state) => _buildAnalyticsDashboard(context, state, historyAsync, ref),
         loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.primaryBlue)),
         error: (err, stack) => Center(child: Text('Error: $err', style: const TextStyle(color: AppTheme.neonRed))),
       ),
     );
   }
 
-  Widget _buildAnalyticsDashboard(BuildContext context, BatteryState state, AsyncValue<List<BatteryState>> historyAsync) {
+  Widget _buildAnalyticsDashboard(BuildContext context, BatteryState state, AsyncValue<List<BatteryState>> historyAsync, WidgetRef ref) {
     return RefreshIndicator(
       onRefresh: () async {
-        // Refresh simulation or trigger data fetch if needed
+        ref.invalidate(batteryStateProvider);
+        ref.invalidate(historyProvider);
       },
       color: AppTheme.primaryBlue,
       backgroundColor: AppTheme.surface,

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'dart:async';
 import '../theme/app_theme.dart';
 import 'diagnostic_report_screen.dart';
@@ -12,6 +13,7 @@ class DiagnosticScanScreen extends StatefulWidget {
 
 class _DiagnosticScanScreenState extends State<DiagnosticScanScreen> with SingleTickerProviderStateMixin {
   int _currentStep = 0;
+  bool _isCancelled = false;
   late AnimationController _pulseController;
   final List<String> _logs = [];
 
@@ -35,25 +37,29 @@ class _DiagnosticScanScreenState extends State<DiagnosticScanScreen> with Single
 
   @override
   void dispose() {
+    _isCancelled = true;
     _pulseController.dispose();
     super.dispose();
   }
 
   Future<void> _runScanSequence() async {
     for (int i = 0; i < _steps.length; i++) {
-        if (!mounted) return;
+        if (!mounted || _isCancelled) return;
         setState(() {
           _currentStep = i;
           _logs.add("[OBD-II] ${_steps[i].message}");
         });
         await Future.delayed(Duration(milliseconds: _steps[i].durationMs));
-        if (!mounted) return;
+        if (!mounted || _isCancelled) return;
         setState(() {
            _logs.last = "${_logs.last} [OK]";
         });
     }
 
-    if (!mounted) return;
+    if (!mounted || _isCancelled) return;
+    
+    // Haptic feedback on completion
+    HapticFeedback.mediumImpact();
     
     // Scan Complete
     setState(() {
@@ -61,7 +67,7 @@ class _DiagnosticScanScreenState extends State<DiagnosticScanScreen> with Single
     });
     
     await Future.delayed(const Duration(milliseconds: 1000));
-    if (!mounted) return;
+    if (!mounted || _isCancelled) return;
 
     // Transition seamlessly to the report
     Navigator.pushReplacement(
@@ -84,7 +90,13 @@ class _DiagnosticScanScreenState extends State<DiagnosticScanScreen> with Single
       backgroundColor: const Color(0xFF0A0A0A),
       appBar: AppBar(
         title: const Text("SYSTEM SCAN", style: TextStyle(letterSpacing: 2)),
-        automaticallyImplyLeading: false, // Prevent backing out during scan
+        leading: IconButton(
+          icon: const Icon(Icons.close, color: AppTheme.neonRed),
+          onPressed: () {
+            _isCancelled = true;
+            Navigator.of(context).pop();
+          },
+        ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),

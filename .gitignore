@@ -51,3 +51,7 @@ scripts/serviceAccountKey.json
 google-services.json
 GoogleService-Info.plist
 
+# Debug/Test artifacts
+test_db.py
+python_log.txt
+*.apk
