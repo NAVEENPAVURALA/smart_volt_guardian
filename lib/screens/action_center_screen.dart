@@ -5,7 +5,7 @@ import '../models/battery_state.dart';
 import '../services/telemetry_service.dart';
 import '../providers/settings_provider.dart';
 import '../theme/app_theme.dart';
-import 'diagnostic_report_screen.dart';
+import 'diagnostic_scan_screen.dart';
 
 class ActionCenterScreen extends ConsumerStatefulWidget {
   const ActionCenterScreen({super.key});
@@ -221,35 +221,10 @@ class _ActionCenterScreenState extends ConsumerState<ActionCenterScreen> {
                   foregroundColor: Colors.black,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                onPressed: () async {
-                   showDialog(
-                     context: context,
-                     barrierDismissible: false,
-                     builder: (ctx) => AlertDialog(
-                        backgroundColor: const Color(0xFF1E1E1E),
-                        title: const Text("Running Diagnostics", style: TextStyle(color: Colors.white)),
-                        content: const Row(
-                          children: [
-                            CircularProgressIndicator(color: AppTheme.primaryBlue),
-                            SizedBox(width: 20),
-                            Expanded(child: Text("Interrogating BCM and HV modules via OBD-II...", style: TextStyle(color: Colors.white70, fontSize: 14))),
-                          ],
-                        ),
-                     )
-                   );
-
-                   // Mock a scan duration of 2 seconds
-                   await Future.delayed(const Duration(seconds: 2));
-
-                   if (!mounted) return;
-                   
-                   // Close the dialog
-                   Navigator.of(context).pop();
-
-                   // Navigate to the Diagnostic Report Screen
+                onPressed: () {
                    Navigator.push(
                      context,
-                     MaterialPageRoute(builder: (context) => const DiagnosticReportScreen()),
+                     MaterialPageRoute(builder: (context) => const DiagnosticScanScreen()),
                    );
                 },
                 icon: const Icon(Icons.flash_on),
